@@ -1,0 +1,2152 @@
+================================================================================
+Raw evidence: AndroidX Material 3 opt-in markers and platform annotations
+Target: the pinned dependency set of cernoh/Sealplus (gradle/libs.versions.toml,
+        androidxComposeBom = 2026.05.01) as it resolves on Google Maven.
+Version under test: androidx.compose.material3:material3-android:1.4.0 and the
+        adaptive artifacts named in PART 2 and PART 3.
+Collected: 2026-09-18.
+Companion report: research/pinned-material3-expressive-api-surface.md
+
+How the blocks below were produced (repeat exactly):
+  curl -fsSL -O https://dl.google.com/dl/android/maven2/<group-path>/<artifact>/<version>/<artifact>-<version>.aar
+  unzip -o -q <artifact>.aar classes.jar -d <dir>
+  nix shell nixpkgs#jdk21 --command javap -v -p -cp <dir>/classes.jar <fully.qualified.Class>
+  The output was passed through a trimming filter that keeps, for each javap
+  member whose declaration matches the block's name filter, the member
+  declaration line and its RuntimeInvisibleAnnotations /
+  RuntimeVisibleAnnotations / RuntimeInvisibleParameterAnnotations block
+  (index line plus annotation class name). Members whose bytecode name contains
+  "lambda" or "access$" are dropped. Bytecode, LineNumberTable, stack map and
+  local variable tables are dropped. `RuntimeInvisibleAnnotations` is where
+  Kotlin opt-in markers land: both markers have BINARY retention, which javap
+  renders as a RuntimeInvisibleAnnotations entry.
+
+Marker classes found in material3-android 1.4.0:
+  androidx.compose.material3.ExperimentalMaterial3Api            (public, @RequiresOptIn)
+  androidx.compose.material3.ExperimentalMaterial3ExpressiveApi  (internal, @RequiresOptIn)
+  Both exist as classes. ExperimentalMaterial3ExpressiveApi is declared
+  `internal annotation class` in the 1.4.0 sources, so no code outside
+  androidx.compose.material3 can name it; see PART 1, last two blocks.
+
+PART 0 - absence and containment checks (commands and their exact output)
+================================================================================
+
+A) BOM POM: any androidx.graphics dependency?
+$ curl -fsSL https://dl.google.com/dl/android/maven2/androidx/compose/compose-bom/2026.05.01/compose-bom-2026.05.01.pom | tr "\n" " " | sed "s|</dependency>|\n|g" | sed "s/<[^>]*>/ /g" | tr -s " " | awk "\$2==\"androidx.graphics\""
+    (no output = the BOM pins no androidx.graphics artifact)
+
+B) material3-android-1.4.0 classes.jar: candidate class files for the listed names
+$ unzip -l m3/classes.jar | awk "{print \$NF}" | sort -u | awk "/SplitButton|LoadingIndicator|MaterialShapes|ButtonGroup|FloatingActionButtonMenu|Toolbar|ToggleButton/"
+    androidx/compose/material3/DatePickerKt$DisplayModeToggleButton$1.class
+    androidx/compose/material3/IconButtonKt$SurfaceIconToggleButton$2.class
+    androidx/compose/material3/IconToggleButtonColors.class
+    androidx/compose/material3/tokens/ButtonGroupSmallTokens.class
+    androidx/compose/material3/tokens/ConnectedButtonGroupSmallTokens.class
+    androidx/compose/material3/tokens/DockedToolbarTokens.class
+    androidx/compose/material3/tokens/FloatingToolbarTokens.class
+    androidx/compose/material3/tokens/LoadingIndicatorTokens.class
+    androidx/compose/material3/tokens/SplitButtonLargeTokens.class
+    androidx/compose/material3/tokens/SplitButtonMediumTokens.class
+    androidx/compose/material3/tokens/SplitButtonSmallTokens.class
+    androidx/compose/material3/tokens/SplitButtonXLargeTokens.class
+    androidx/compose/material3/tokens/SplitButtonXSmallTokens.class
+
+C) material3-android-1.4.0 member dump over all 558 public classes: SplitButton / LoadingIndicator / MaterialShapes / ButtonGroup / FloatingActionButtonMenu / HorizontalFloatingToolbar / FlexibleBottomAppBar / ToggleButton
+$ awk "/\.class\$/ && !/\\\$/" m3all.txt | sed "s|/|.|g; s|\.class\$||" | sort -u > m3fqcn.txt   # 558 classes
+$ xargs -a m3fqcn.txt javap -p -cp m3/classes.jar > jd_all_members.txt
+    matching member lines (excluding IconToggleButton/DatePickerToggleButton variants):  101
+      public static final void FlexibleBottomAppBar-wBhsO_E(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout.PaddingValues, an
+      private static final kotlin.Unit FlexibleBottomAppBar_wBhsO_E$lambda$16(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout
+      private static final float FlexibleBottomAppBarHeight;
+      public final float getFlexibleBottomAppBarHeight-D9Ej5fM$material3();
+      private static final float LoadingIndicatorElevation;
+      public final float getLoadingIndicatorElevation-D9Ej5fM();
+    Compiled from "ButtonGroupSmallTokens.kt"
+    public final class androidx.compose.material3.tokens.ButtonGroupSmallTokens {
+      public static final androidx.compose.material3.tokens.ButtonGroupSmallTokens INSTANCE;
+      private androidx.compose.material3.tokens.ButtonGroupSmallTokens();
+    Compiled from "ConnectedButtonGroupSmallTokens.kt"
+    public final class androidx.compose.material3.tokens.ConnectedButtonGroupSmallTokens {
+
+D) material3-android-1.4.0-sources.jar file list for the same names
+$ unzip -l material3-android-1.4.0-sources.jar | awk "{print \$NF}" | awk "/SplitButton|LoadingIndicator|MaterialShapes|ButtonGroup|FloatingActionButtonMenu|ToggleButton|Toolbar/"
+    commonMain/androidx/compose/material3/tokens/ButtonGroupSmallTokens.kt
+    commonMain/androidx/compose/material3/tokens/ConnectedButtonGroupSmallTokens.kt
+    commonMain/androidx/compose/material3/tokens/DockedToolbarTokens.kt
+    commonMain/androidx/compose/material3/tokens/FloatingToolbarTokens.kt
+    commonMain/androidx/compose/material3/tokens/LoadingIndicatorTokens.kt
+    commonMain/androidx/compose/material3/tokens/SplitButtonLargeTokens.kt
+    commonMain/androidx/compose/material3/tokens/SplitButtonMediumTokens.kt
+    commonMain/androidx/compose/material3/tokens/SplitButtonSmallTokens.kt
+    commonMain/androidx/compose/material3/tokens/SplitButtonXLargeTokens.kt
+    commonMain/androidx/compose/material3/tokens/SplitButtonXSmallTokens.kt
+
+E) sources: MaterialShapes / RoundedPolygon occurrences
+$ awk "/MaterialShapes|RoundedPolygon/" $(find m3src -name "*.kt")
+    (no output = neither name occurs in the 1.4.0 sources)
+
+================================================================================
+PART 1 - androidx.compose.material3:material3-android:1.4.0
+  classes.jar: 1378 entries, 558 public (non-anonymous) classes
+================================================================================
+
+#### androidx.compose.material3.MaterialThemeKt (MaterialExpressiveTheme, MaterialTheme)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.MaterialThemeKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MaterialThemeKt.class
+  Last modified 1 Jan 1981; size 17520 bytes
+
+  MEMBER:   private static final androidx.compose.runtime.ProvidableCompositionLocal<java.lang.Boolean> LocalUsingExpressiveTheme;
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final void MaterialTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void MaterialTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void MaterialTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.MotionScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void MaterialTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.MotionScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void MaterialExpressiveTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.MotionScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void MaterialExpressiveTheme(androidx.compose.material3.ColorScheme, androidx.compose.material3.MotionScheme, androidx.compose.material3.Shapes, androidx.compose.material3.Typography, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.runtime.ProvidableCompositionLocal<java.lang.Boolean> getLocalUsingExpressiveTheme();
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #437(#438=[I#439,I#440,I#440],#441=I#439,#442=I#443,#444=[s#445],#446=[s#5,s#447,s#126,s#127,s#128,s#129,s#130,s#131,s#132,s#448,s#8,s#6,s#235,s#236,s#88,s#239,s#245,s#178,s#447,s#321,s#168,s#159,s#234,s#160,s#434,s#447,s#177,s#378,s#41,s#449])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #451(#452=[s#453])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.MaterialTheme (motionScheme)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.MaterialTheme
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MaterialTheme.class
+  Last modified 1 Jan 1981; size 5858 bytes
+
+  MEMBER:   public final androidx.compose.material3.MotionScheme getMotionScheme(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.runtime.Composable
+      1: #14()
+        androidx.compose.runtime.ReadOnlyComposable
+      2: #15(#16=s#100)
+        kotlin.jvm.JvmName(
+
+  MEMBER:   public final androidx.compose.material3.MotionScheme getMotionScheme(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public final androidx.compose.runtime.CompositionLocal<androidx.compose.material3.MotionScheme> getLocalMotionScheme$material3();
+    RuntimeInvisibleAnnotations:
+      0: #17()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #128(#129=[I#130,I#131,I#131],#132=I#127,#133=I#134,#135=[s#136],#137=[s#10,s#138,s#5,s#6,s#139,s#140,s#11,s#12,s#141,s#142,s#72,s#73,s#143,s#144,s#86,s#87,s#145,s#146,s#100,s#101,s#147,s#67,s#107,s#108,s#148])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #125(#126=I#127)
+    androidx.compose.runtime.internal.StabilityInferred(
+
+#### androidx.compose.material3.MotionScheme
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.MotionScheme
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MotionScheme.class
+  Last modified 1 Jan 1981; size 1667 bytes
+
+  MEMBER:   public static final androidx.compose.material3.MotionScheme$Companion Companion;
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> defaultSpatialSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> fastSpatialSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> slowSpatialSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> defaultEffectsSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> fastEffectsSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public abstract <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> slowEffectsSpec();
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #26(#27=[I#28,I#29,I#29],#30=I#31,#32=I#33,#34=[s#35],#36=[s#37,s#38,s#5,s#39,s#40,s#9,s#10,s#11,s#12,s#13,s#22,s#41,s#42,s#43])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #25()
+    androidx.compose.runtime.Immutable
+
+#### androidx.compose.material3.MotionScheme$Companion
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.MotionScheme$Companion
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MotionScheme$Companion.class
+  Last modified 1 Jan 1981; size 1540 bytes
+
+  MEMBER:   public final androidx.compose.material3.MotionScheme standard$material3();
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.material3.MotionScheme expressive$material3();
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #33(#34=[I#35,I#36,I#36],#37=I#38,#39=I#40,#41=[s#42],#43=[s#10,s#44,s#5,s#6,s#45,s#46,s#11,s#47,s#22,s#48])
+    kotlin.Metadata(
+
+#### androidx.compose.material3.MotionSchemeKt
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.batch2
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MotionSchemeKt.class
+  Last modified 1 Jan 1981; size 3476 bytes
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> fromToken(androidx.compose.material3.MotionScheme, androidx.compose.material3.tokens.MotionSchemeKeyTokens);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Stable
+      1: #9()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> fromToken(androidx.compose.material3.MotionScheme, androidx.compose.material3.tokens.MotionSchemeKeyTokens);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> value(androidx.compose.material3.tokens.MotionSchemeKeyTokens, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #57()
+        androidx.compose.runtime.Composable
+      1: #58()
+        androidx.compose.runtime.ReadOnlyComposable
+      2: #9()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.animation.core.FiniteAnimationSpec<T> value(androidx.compose.material3.tokens.MotionSchemeKeyTokens, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #103(#104=[I#105,I#106,I#106],#107=I#105,#108=I#109,#110=[s#111],#112=[s#5,s#113,s#114,s#50,s#51,s#52,s#55,s#115])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #776(#777=[I#778,I#779,I#779],#780=I#778,#781=I#782,#783=[s#784],#785=[s#786,s#787,s#183,s#788,s#185,s#186,s#187,s#188,s#189,s#789,s#191,s#192,s#193,s#194,s#195,s#196,s#8,s#5,s#6,s#353,s#354,s#355,s#790,s#357,s#144,s#145,s#791,s#361,s#792,s#392,s#793,s#794,s#795,s#796,s#415,s#416,s#473,s#474,s#475,s#787,s#445,s#446,s#511,s#512,s#513,s#476,s#477,s#679,s#356,s#682,s#688,s#694,s#700,s#709,s#706,s#718,s#721,s#725,s#729,s#736,s#742,s#751,s#754,s#758,s#762,s#765,s#771,s#659,s#669,s#655,s#651,s#514,s#797,s#515,s#563,s#798,s#564,s#799])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #806(#529=[s#807])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.Typography (emphasized styles)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.Typography
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/Typography.class
+  Last modified 1 Jan 1981; size 23966 bytes
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle displayLargeEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle displayMediumEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle displaySmallEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle headlineLargeEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle headlineMediumEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle headlineSmallEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle titleLargeEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle titleMediumEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle titleSmallEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle bodyLargeEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle bodyMediumEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle bodySmallEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle labelLargeEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle labelMediumEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private final androidx.compose.ui.text.TextStyle labelSmallEmphasized;
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getDisplayLargeEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getDisplayMediumEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getDisplaySmallEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getHeadlineLargeEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getHeadlineMediumEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getHeadlineSmallEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getTitleLargeEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getTitleMediumEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getTitleSmallEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getBodyLargeEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getBodyMediumEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getBodySmallEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getLabelLargeEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getLabelMediumEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.ui.text.TextStyle getLabelSmallEmphasized$material3();
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.material3.Typography copy$material3(androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.material3.Typography copy$material3(androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public final androidx.compose.material3.Typography copy(androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public final androidx.compose.material3.Typography copy(androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #352(#353=[I#354,I#355,I#355],#356=I#357,#358=I#359,#360=[s#361],#362=[s#103,s#363,s#11,s#12,s#15,s#18,s#21,s#24,s#27,s#30,s#33,s#36,s#39,s#42,s#45,s#48,s#51,s#54,s#57,s#60,s#63,s#66,s#69,s#72,s#75,s#78,s#81,s#84,s#87,s#90,s#93,s#96,s#99,s#5,s#6,s#234,s#111,s#112,s#115,s#118,s#121,s#124,s#127,s#130,s#133,s#136,s#139,s#142,s#145,s#148,s#151,s#154,s#219,s#220,s#221,s#222,s#223,s#224,s#225,s#226,s#227,s#228,s#229,s#230,s#231,s#232,s#233,s#244,s#238,s#250,s#363,s#259,s#261,s#363,s#269,s#363,s#364])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #351()
+    androidx.compose.runtime.Immutable
+
+#### androidx.compose.material3.SliderKt (Slider, RangeSlider, VerticalSlider)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.SliderKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/SliderKt.class
+  Last modified 1 Jan 1981; size 104986 bytes
+
+  MEMBER:   public static final void Slider(float, kotlin.jvm.functions.Function1<? super java.lang.Float, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, int, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void Slider(float, kotlin.jvm.functions.Function1<? super java.lang.Float, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, int, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void Slider(float, kotlin.jvm.functions.Function1<? super java.lang.Float, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, int, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      2: #252(#253=s#254)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void Slider(float, kotlin.jvm.functions.Function1<? super java.lang.Float, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, int, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void Slider(androidx.compose.material3.SliderState, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      2: #252(#253=s#254)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void Slider(androidx.compose.material3.SliderState, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void VerticalSlider(androidx.compose.material3.SliderState, androidx.compose.ui.Modifier, boolean, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #252(#253=s#254)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void VerticalSlider(androidx.compose.material3.SliderState, androidx.compose.ui.Modifier, boolean, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void RangeSlider(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function1<? super kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, int, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void RangeSlider(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function1<? super kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, int, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void RangeSlider(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function1<? super kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      2: #252(#253=s#450)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void RangeSlider(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function1<? super kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void RangeSlider(androidx.compose.material3.RangeSliderState, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      2: #252(#253=s#450)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void RangeSlider(androidx.compose.material3.RangeSliderState, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SliderColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void SliderImpl(androidx.compose.ui.Modifier, androidx.compose.material3.SliderState, boolean, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #252(#253=s#254)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   private static final void RangeSliderImpl(androidx.compose.ui.Modifier, androidx.compose.material3.RangeSliderState, boolean, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.RangeSliderState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #252(#253=s#450)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   private static final androidx.compose.ui.Modifier sliderTapModifier(androidx.compose.ui.Modifier, androidx.compose.material3.SliderState, androidx.compose.foundation.interaction.MutableInteractionSource, boolean);
+    RuntimeInvisibleAnnotations:
+      0: #1338()
+        androidx.compose.runtime.Stable
+
+  MEMBER:   private static final androidx.compose.ui.Modifier rangeSliderPressDragModifier(androidx.compose.ui.Modifier, androidx.compose.material3.RangeSliderState, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.foundation.interaction.MutableInteractionSource, boolean);
+    RuntimeInvisibleAnnotations:
+      0: #1338()
+        androidx.compose.runtime.Stable
+
+  MEMBER:   public static final androidx.compose.material3.SliderState rememberSliderState(float, int, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #8()
+        androidx.compose.runtime.Composable
+      2: #12()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.SliderState rememberSliderState(float, int, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.material3.RangeSliderState rememberRangeSliderState(float, float, int, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #251()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #8()
+        androidx.compose.runtime.Composable
+      2: #12()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.RangeSliderState rememberRangeSliderState(float, float, int, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final long SliderRange(float, float);
+    RuntimeInvisibleAnnotations:
+      0: #1338()
+        androidx.compose.runtime.Stable
+
+  MEMBER:   public static final long SliderRange(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>);
+    RuntimeInvisibleAnnotations:
+      0: #1338()
+        androidx.compose.runtime.Stable
+
+  MEMBER:   public static final long SliderRange(kotlin.ranges.ClosedFloatingPointRange<java.lang.Float>);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1714(#1715=[I#1716,I#1717,I#1717],#1718=I#1716,#1719=I#1720,#1721=[s#1722],#1723=[s#5,s#1724,s#225,s#1724,s#227,s#1725,s#229,s#230,s#231,s#1724,s#232,s#233,s#234,s#1724,s#235,s#1726,s#96,s#237,s#238,s#239,s#6,s#311,s#309,s#8,s#313,s#177,s#308,s#295,s#363,s#408,s#364,s#409,s#410,s#447,s#448,s#532,s#531,s#533,s#434,s#516,s#349,s#350,s#701,s#951,s#952,s#557,s#558,s#1088,s#1130,s#1131,s#1724,s#1132,s#1133,s#1727,s#1728,s#1213,s#1205,s#1206,s#1729,s#1208,s#1730,s#1135,s#1136,s#1224,s#1226,s#1231,s#1232,s#1233,s#1234,s#1235,s#1532,s#1262,s#1263,s#1236,s#1237,s#1228,s#1267,s#1268,s#1269,s#676,s#1010,s#1043,s#1326,s#1724,s#617,s#960,s#666,s#1731,s#1360,s#483,s#226,s#669,s#1361,s#1688,s#1643,s#1732,s#1207,s#1666,s#1647,s#1651,s#1362,s#1363,s#1402,s#1428,s#1429,s#1403,s#1253,s#1260,s#1464,s#1254,s#1472,s#1465,s#1733,s#1485,s#1486,s#1473,s#1474,s#1490,s#1491,s#1488,s#1489,s#1734])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1745(#225=[s#1746])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.AppBarKt (FlexibleBottomAppBar, BottomAppBar)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.AppBarKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/AppBarKt.class
+  Last modified 1 Jan 1981; size 148447 bytes
+
+  MEMBER:   public static final void MediumFlexibleTopAppBar-eXZ4JBQ(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, float, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.TopAppBarColors, androidx.compose.material3.TopAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void MediumFlexibleTopAppBar-eXZ4JBQ(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, float, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.TopAppBarColors, androidx.compose.material3.TopAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void LargeFlexibleTopAppBar-eXZ4JBQ(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, float, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.TopAppBarColors, androidx.compose.material3.TopAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void LargeFlexibleTopAppBar-eXZ4JBQ(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, float, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.TopAppBarColors, androidx.compose.material3.TopAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void BottomAppBar-Snr_uVM(kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+      1: #577(#578=s#636)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void BottomAppBar-Snr_uVM(kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void BottomAppBar-qhFBPw4(kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #14()
+        androidx.compose.runtime.Composable
+      2: #577(#578=s#636)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void BottomAppBar-qhFBPw4(kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void BottomAppBar-1oL4kX8(androidx.compose.ui.Modifier, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+      1: #577(#578=s#723)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void BottomAppBar-1oL4kX8(androidx.compose.ui.Modifier, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void BottomAppBar-e-3WI5M(androidx.compose.ui.Modifier, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #14()
+        androidx.compose.runtime.Composable
+      2: #577(#578=s#723)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void BottomAppBar-e-3WI5M(androidx.compose.ui.Modifier, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void FlexibleBottomAppBar-wBhsO_E(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.Arrangement$Horizontal, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+      1: #577(#578=s#723)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void FlexibleBottomAppBar-wBhsO_E(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.Arrangement$Horizontal, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void BottomAppBarLayout-t5fmz9U(float, androidx.compose.foundation.layout.Arrangement$Horizontal, androidx.compose.ui.Modifier, long, long, float, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.layout.WindowInsets, androidx.compose.material3.BottomAppBarScrollBehavior, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #14()
+        androidx.compose.runtime.Composable
+      1: #577(#578=s#723)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final androidx.compose.material3.BottomAppBarState rememberBottomAppBarState(float, float, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #14()
+        androidx.compose.runtime.Composable
+      2: #182()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.BottomAppBarState rememberBottomAppBarState(float, float, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.material3.BottomAppBarState BottomAppBarState(float, float, float);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.material3.ExperimentalMaterial3Api
+      1: #182()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #2050(#2051=[I#2052,I#2053,I#2053],#2054=I#2052,#2055=I#2056,#2057=[s#2058],#2059=[s#5,s#2060,s#155,s#2061,s#14,s#157,s#158,s#159,s#160,s#2062,s#2063,s#2064,s#162,s#163,s#164,s#165,s#166,s#167,s#6,s#274,s#2065,s#116,s#117,s#278,s#293,s#359,s#360,s#361,s#322,s#323,s#362,s#433,s#385,s#386,s#2066,s#434,s#435,s#480,s#501,s#2067,s#536,s#1301,s#2060,s#2068,s#2069,s#2070,s#574,s#575,s#2071,s#682,s#683,s#2072,s#685,s#686,s#687,s#688,s#633,s#634,s#717,s#670,s#671,s#739,s#720,s#721,s#705,s#706,s#2073,s#830,s#831,s#776,s#777,s#2074,s#992,s#764,s#765,s#1001,s#1348,s#1041,s#2060,s#1042,s#1043,s#1002,s#1048,s#1207,s#1049,s#1073,s#1079,s#2075,s#1206,s#1208,s#1209,s#1210,s#1211,s#1212,s#1080,s#1997,s#275,s#1227,s#1226,s#110,s#2020,s#2016,s#1256,s#1277,s#1278,s#1279,s#262,s#263,s#1241,s#1242,s#1274,s#1283,s#50,s#1280,s#1281,s#1317,s#1318,s#1319,s#1320,s#1321,s#421,s#422,s#1296,s#1315,s#1324,s#1322,s#1325,s#2076,s#1705,s#1706,s#1707,s#1708,s#1709,s#1710,s#1711,s#1712,s#1688,s#2060,s#1713,s#1714,s#1350,s#1351,s#1721,s#1722,s#840,s#989,s#841,s#1763,s#1764,s#1761,s#1762,s#416,s#528,s#1475,s#2012,s#2077,s#2078])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #2085(#2086=[s#2087])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.ShortNavigationBarKt
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.ShortNavigationBarKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/ShortNavigationBarKt.class
+  Last modified 1 Jan 1981; size 19957 bytes
+
+  MEMBER:   private static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.ShortNavigationBarOverride> LocalShortNavigationBarOverride;
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final void ShortNavigationBar-kQ6Tpik(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout.WindowInsets, int, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void ShortNavigationBar-kQ6Tpik(androidx.compose.ui.Modifier, long, long, androidx.compose.foundation.layout.WindowInsets, int, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void ShortNavigationBarItem-6ZDA4I0(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, int, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #196(#197=s#198)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ShortNavigationBarItem-6ZDA4I0(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, int, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.ShortNavigationBarOverride> getLocalShortNavigationBarOverride();
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #493(#494=[I#495,I#496,I#496],#497=I#495,#498=I#499,#500=[s#501],#502=[s#130,s#503,s#176,s#177,s#178,s#504,s#180,s#181,s#182,s#183,s#505,s#184,s#506,s#8,s#5,s#6,s#507,s#368,s#503,s#369,s#371,s#372,s#373,s#374,s#508,s#233,s#375,s#363,s#364,s#193,s#194,s#101,s#102,s#174,s#380,s#381,s#383,s#503,s#392,s#393,s#334,s#509,s#394,s#325,s#283,s#289,s#395,s#282,s#396,s#292,s#397,s#328,s#398,s#286,s#399,s#331,s#400,s#510])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #514(#515=[s#516])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.WideNavigationRailKt
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.WideNavigationRailKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/WideNavigationRailKt.class
+  Last modified 1 Jan 1981; size 74231 bytes
+
+  MEMBER:   private static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.WideNavigationRailOverride> LocalWideNavigationRailOverride;
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   private static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.ModalWideNavigationRailOverride> LocalModalWideNavigationRailOverride;
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final void WideNavigationRail(androidx.compose.ui.Modifier, androidx.compose.material3.WideNavigationRailState, androidx.compose.ui.graphics.Shape, androidx.compose.material3.WideNavigationRailColors, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.foundation.layout.WindowInsets, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void WideNavigationRail(androidx.compose.ui.Modifier, androidx.compose.material3.WideNavigationRailState, androidx.compose.ui.graphics.Shape, androidx.compose.material3.WideNavigationRailColors, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.foundation.layout.WindowInsets, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void WideNavigationRailLayout(androidx.compose.ui.Modifier, boolean, boolean, androidx.compose.material3.WideNavigationRailColors, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.foundation.layout.WindowInsets, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #215(#216=s#217)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ModalWideNavigationRail-k3FuEkE(androidx.compose.ui.Modifier, androidx.compose.material3.WideNavigationRailState, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.ui.graphics.Shape, androidx.compose.material3.WideNavigationRailColors, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.foundation.layout.Arrangement$Vertical, androidx.compose.material3.ModalWideNavigationRailProperties, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void ModalWideNavigationRail-k3FuEkE(androidx.compose.ui.Modifier, androidx.compose.material3.WideNavigationRailState, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.ui.graphics.Shape, androidx.compose.material3.WideNavigationRailColors, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, float, androidx.compose.foundation.layout.WindowInsets, androidx.compose.foundation.layout.Arrangement$Vertical, androidx.compose.material3.ModalWideNavigationRailProperties, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void WideNavigationRailItem-pli-t6k(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, boolean, androidx.compose.ui.Modifier, boolean, int, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #215(#216=s#482)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void WideNavigationRailItem-pli-t6k(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, boolean, androidx.compose.ui.Modifier, boolean, int, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void ModalWideNavigationRailContent-pU6N4AM(boolean, boolean, androidx.compose.animation.core.Animatable<java.lang.Float, androidx.compose.animation.core.AnimationVector1D>, androidx.compose.material3.RailPredictiveBackState, kotlin.jvm.functions.Function2<? super java.lang.Float, ? super kotlin.coroutines.Continuation<? super kotlin.Unit>, ? extends java.lang.Object>, androidx.compose.ui.Modifier, androidx.compose.material3.ModalWideNavigationRailState, androidx.compose.material3.WideNavigationRailColors, androidx.compose.ui.graphics.Shape, float, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.foundation.layout.WindowInsets, boolean, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #215(#216=s#217)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.WideNavigationRailOverride> getLocalWideNavigationRailOverride();
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.material3.ModalWideNavigationRailOverride> getLocalModalWideNavigationRailOverride();
+    RuntimeInvisibleAnnotations:
+      0: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1361(#1362=[I#1363,I#1364,I#1364],#1365=I#1363,#1366=I#1367,#1368=[s#1369],#1370=[s#5,s#1371,s#183,s#184,s#185,s#186,s#187,s#188,s#80,s#189,s#190,s#1372,s#8,s#192,s#193,s#194,s#195,s#196,s#6,s#212,s#405,s#1371,s#406,s#213,s#452,s#470,s#471,s#472,s#473,s#1373,s#474,s#475,s#411,s#412,s#1374,s#602,s#603,s#605,s#606,s#607,s#608,s#609,s#1375,s#610,s#600,s#601,s#479,s#480,s#1376,s#775,s#776,s#777,s#1371,s#1377,s#778,s#779,s#780,s#1378,s#1379,s#1380,s#1381,s#1382,s#1371,s#781,s#782,s#783,s#784,s#615,s#616,s#793,s#838,s#839,s#840,s#841,s#1383,s#989,s#1384,s#990,s#1385,s#992,s#852,s#853,s#572,s#995,s#268,s#314,s#576,s#1266,s#1296,s#313,s#317,s#328,s#339,s#560,s#557,s#569,s#810,s#845,s#1356,s#1357,s#1371,s#109,s#110,s#181,s#996,s#262,s#447,s#466,s#998,s#1386,s#1387,s#1371,s#1388,s#1389,s#1390,s#1391,s#1392,s#1393,s#1394])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1401(#306=[s#1402])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.NavigationItemKt (shared item, internal in 1.4.0)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.NavigationItemKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/NavigationItemKt.class
+  Last modified 1 Jan 1981; size 84089 bytes
+
+  MEMBER:   public static final void NavigationItem-8Df7sds(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.text.TextStyle, androidx.compose.ui.graphics.Shape, float, float, float, float, float, float, androidx.compose.material3.NavigationItemColors, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationItem-8Df7sds(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.text.TextStyle, androidx.compose.ui.graphics.Shape, float, float, float, float, float, float, androidx.compose.material3.NavigationItemColors, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void AnimatedNavigationItem-DQd_Gtc(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.graphics.Shape, float, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, float, float, float, float, float, float, float, float, androidx.compose.material3.NavigationItemColors, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void AnimatedNavigationItem-DQd_Gtc(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.graphics.Shape, float, androidx.compose.ui.text.TextStyle, androidx.compose.ui.text.TextStyle, float, float, float, float, float, float, float, float, androidx.compose.material3.NavigationItemColors, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void NavigationItemLayout-KmRX-Dg(androidx.compose.foundation.interaction.InteractionSource, long, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function0<java.lang.Float>, float, float, float, float, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#726)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   private static final void AnimatedNavigationItemLayout-he0WsC4(androidx.compose.foundation.interaction.InteractionSource, long, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function0<java.lang.Float>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, int, kotlin.jvm.functions.Function0<java.lang.Float>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, float, float, float, float, float, float, float, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#726)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   private static final void StyledLabel(boolean, androidx.compose.ui.text.TextStyle, androidx.compose.material3.NavigationItemColors, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#991)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1270(#1271=[I#1272,I#1273,I#1273],#1274=I#1272,#1275=I#1276,#1277=[s#1278],#1279=[s#1280,s#1281,s#562,s#1281,s#563,s#1282,s#564,s#8,s#565,s#566,s#567,s#568,s#569,s#1283,s#570,s#571,s#572,s#573,s#574,s#575,s#576,s#577,s#545,s#578,s#579,s#580,s#1284,s#581,s#582,s#5,s#6,s#1285,s#714,s#715,s#716,s#717,s#718,s#719,s#720,s#721,s#722,s#723,s#598,s#599,s#1286,s#807,s#808,s#1287,s#518,s#1281,s#454,s#455,s#1288,s#852,s#688,s#689,s#1289,s#1290,s#897,s#898,s#899,s#900,s#901,s#902,s#1291,s#853,s#854,s#1292,s#931,s#903,s#904,s#1293,s#932,s#933,s#1294,s#1281,s#941,s#942,s#988,s#1015,s#989,s#358,s#519,s#359,s#754,s#755,s#1295,s#758,s#759,s#1265,s#1281,s#1267,s#1268,s#1269,s#394,s#395,s#1296,s#1297,s#1298])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1308(#628=[s#1309])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.SegmentedButtonKt
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.SegmentedButtonKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/SegmentedButtonKt.class
+  Last modified 1 Jan 1981; size 54210 bytes
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.layout.PaddingValues, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function1, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeVisibleAnnotations:
+      0: #381(#382=s#383,#384=e#385.#386)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function1, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function0, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeVisibleAnnotations:
+      0: #381(#382=s#383,#384=e#385.#386)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void SegmentedButton(androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, boolean, kotlin.jvm.functions.Function0, androidx.compose.ui.graphics.Shape, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.SegmentedButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SingleChoiceSegmentedButtonRow-uFdPcIQ(androidx.compose.ui.Modifier, float, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#436)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SingleChoiceSegmentedButtonRow-uFdPcIQ(androidx.compose.ui.Modifier, float, kotlin.jvm.functions.Function3<? super androidx.compose.material3.SingleChoiceSegmentedButtonRowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void MultiChoiceSegmentedButtonRow-uFdPcIQ(androidx.compose.ui.Modifier, float, kotlin.jvm.functions.Function3<? super androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#436)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void MultiChoiceSegmentedButtonRow-uFdPcIQ(androidx.compose.ui.Modifier, float, kotlin.jvm.functions.Function3<? super androidx.compose.material3.MultiChoiceSegmentedButtonRowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void SegmentedButtonContent(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.foundation.layout.PaddingValues, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #982(#983=[I#984,I#985,I#985],#986=I#984,#987=I#988,#989=[s#990],#991=[s#5,s#992,s#287,s#288,s#992,s#289,s#993,s#291,s#292,s#293,s#294,s#295,s#83,s#296,s#297,s#298,s#299,s#300,s#277,s#278,s#301,s#994,s#8,s#303,s#6,s#370,s#371,s#372,s#317,s#380,s#411,s#995,s#675,s#996,s#677,s#997,s#433,s#434,s#998,s#685,s#708,s#709,s#187,s#283,s#992,s#831,s#188,s#197,s#282,s#981,s#992,s#974,s#676,s#999])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1009(#766=[s#1010])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.IconButtonKt (IconToggleButton family)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.IconButtonKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/IconButtonKt.class
+  Last modified 1 Jan 1981; size 63796 bytes
+
+  MEMBER:   public static final void IconToggleButton(boolean, kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#9,#10=@#11(#12=s#528,#14=[]),#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void IconToggleButton(boolean, kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void IconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void IconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void IconToggleButtonImpl(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.ui.graphics.Shape, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void FilledIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void FilledIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void FilledTonalIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void FilledTonalIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void OutlinedIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void OutlinedIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void SurfaceIconToggleButton(boolean, kotlin.jvm.functions.Function1<? super java.lang.Boolean, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, androidx.compose.material3.IconToggleButtonColors, androidx.compose.foundation.BorderStroke, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #939(#940=[I#941,I#942,I#942],#943=I#941,#944=I#945,#946=[s#947],#948=[s#5,s#949,s#141,s#950,s#143,s#144,s#145,s#949,s#147,s#148,s#149,s#150,s#151,s#18,s#6,s#193,s#194,s#103,s#181,s#182,s#526,s#553,s#554,s#951,s#556,s#527,s#542,s#575,s#641,s#642,s#669,s#670,s#714,s#730,s#753,s#781,s#782,s#754,s#785,s#786,s#657,s#658,s#701,s#702,s#952])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #959(#960=[s#961])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.ProgressIndicatorKt (no LoadingIndicator composable)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.ProgressIndicatorKt
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/ProgressIndicatorKt.class
+  Last modified 1 Jan 1981; size 75753 bytes
+
+  MEMBER:   public static final void LinearProgressIndicator-_5eSR-E(kotlin.jvm.functions.Function0, androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#9,#10=@#11(#12=s#13,#14=[]),#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void LinearProgressIndicator-_5eSR-E(kotlin.jvm.functions.Function0, androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-GJbTh5U(kotlin.jvm.functions.Function0<java.lang.Float>, androidx.compose.ui.Modifier, long, long, int, float, kotlin.jvm.functions.Function1<? super androidx.compose.ui.graphics.drawscope.DrawScope, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-GJbTh5U(kotlin.jvm.functions.Function0<java.lang.Float>, androidx.compose.ui.Modifier, long, long, int, float, kotlin.jvm.functions.Function1<? super androidx.compose.ui.graphics.drawscope.DrawScope, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void LinearProgressIndicator-2cYBFYY(androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#317,#10=@#11(#12=s#318,#14=[]),#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void LinearProgressIndicator-2cYBFYY(androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-rIrjwxo(androidx.compose.ui.Modifier, long, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-rIrjwxo(androidx.compose.ui.Modifier, long, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void LinearProgressIndicator-_5eSR-E(float, androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#409,#10=@#11(#12=s#410,#14=[]))
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void LinearProgressIndicator-_5eSR-E(float, androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-_5eSR-E(float, androidx.compose.ui.Modifier, long, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void LinearProgressIndicator-eaDK9VM(float, androidx.compose.ui.Modifier, long, long, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#438,#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void LinearProgressIndicator-eaDK9VM(float, androidx.compose.ui.Modifier, long, long, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void LinearProgressIndicator-RIQooxk(androidx.compose.ui.Modifier, long, long, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#438,#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void LinearProgressIndicator-RIQooxk(androidx.compose.ui.Modifier, long, long, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-DUhRLBM(kotlin.jvm.functions.Function0, androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#567,#10=@#11(#12=s#568,#14=[]),#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void CircularProgressIndicator-DUhRLBM(kotlin.jvm.functions.Function0, androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-IyT6zlY(kotlin.jvm.functions.Function0<java.lang.Float>, androidx.compose.ui.Modifier, long, float, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-IyT6zlY(kotlin.jvm.functions.Function0<java.lang.Float>, androidx.compose.ui.Modifier, long, float, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void CircularProgressIndicator-LxG7B9w(androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#690,#10=@#11(#12=s#691,#14=[]),#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void CircularProgressIndicator-LxG7B9w(androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-4lLiAd8(androidx.compose.ui.Modifier, long, float, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-4lLiAd8(androidx.compose.ui.Modifier, long, float, long, int, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void CircularProgressIndicator-DUhRLBM(float, androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#409,#10=@#11(#12=s#761,#14=[]))
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void CircularProgressIndicator-DUhRLBM(float, androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-DUhRLBM(float, androidx.compose.ui.Modifier, long, float, long, int, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void CircularProgressIndicator-MBs18nI(float, androidx.compose.ui.Modifier, long, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#438,#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void CircularProgressIndicator-MBs18nI(float, androidx.compose.ui.Modifier, long, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER:   public static final void CircularProgressIndicator-aM-cp0Q(androidx.compose.ui.Modifier, long, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#438,#15=e#16.#17)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void CircularProgressIndicator-aM-cp0Q(androidx.compose.ui.Modifier, long, float, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #18()
+        androidx.compose.runtime.Composable
+      1: #19(#20=s#21)
+        androidx.compose.runtime.ComposableTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1200(#1201=[I#1202,I#1183,I#1183],#1203=I#1202,#1204=I#1205,#1206=[s#1207],#1208=[s#1209,s#1210,s#147,s#1211,s#1210,s#149,s#150,s#151,s#1212,s#153,s#154,s#1213,s#5,s#6,s#312,s#1214,s#313,s#1215,s#561,s#1216,s#108,s#109,s#315,s#316,s#326,s#327,s#408,s#436,s#437,s#456,s#457,s#1217,s#562,s#563,s#564,s#473,s#474,s#1218,s#565,s#566,s#594,s#595,s#688,s#689,s#705,s#706,s#760,s#787,s#788,s#806,s#807,s#1219,s#841,s#842,s#686,s#687,s#823,s#824,s#1220,s#843,s#844,s#1221,s#848,s#1222,s#850,s#851,s#1223,s#1224,s#725,s#352,s#1225,s#729,s#1226,s#734,s#1227,s#351,s#1228,s#367,s#1229,s#370,s#1230,s#373,s#261,s#927,s#103,s#262,s#265,s#928,s#930,s#929,s#652,s#933,s#1174,s#1210,s#1176,s#1178,s#1179,s#1181,s#1182,s#1184,s#1186,s#1188,s#936,s#937,s#934,s#935,s#941,s#940,s#1190,s#1191,s#1192,s#1194,s#1196,s#1198,s#1199,s#1231])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1241(#1242=[s#1243])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.FloatingActionButtonKt (no FloatingActionButtonMenu)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.batch2
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/MotionSchemeKt.class
+  Last modified 1 Jan 1981; size 3476 bytes
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #103(#104=[I#105,I#106,I#106],#107=I#105,#108=I#109,#110=[s#111],#112=[s#5,s#113,s#114,s#50,s#51,s#52,s#55,s#115])
+    kotlin.Metadata(
+
+  MEMBER:   public static final void FloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void FloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void FloatingActionButton-lF-WlFE(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.text.TextStyle, float, float, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SmallFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SmallFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void LargeFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void LargeFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void ExtendedFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#11)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ExtendedFloatingActionButton-X-z6DiA(kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, kotlin.jvm.functions.Function3<? super androidx.compose.foundation.layout.RowScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void ExtendedFloatingActionButton-ElI5-7k(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#448)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ExtendedFloatingActionButton-ElI5-7k(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void ExtendedFloatingActionButton-qtIzBjc(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function0<kotlin.Unit>, androidx.compose.ui.text.TextStyle, float, float, float, float, float, androidx.compose.ui.Modifier, boolean, androidx.compose.ui.graphics.Shape, long, long, androidx.compose.material3.FloatingActionButtonElevation, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.runtime.Composable
+      1: #9(#10=s#448)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #776(#777=[I#778,I#779,I#779],#780=I#778,#781=I#782,#783=[s#784],#785=[s#786,s#787,s#183,s#788,s#185,s#186,s#187,s#188,s#189,s#789,s#191,s#192,s#193,s#194,s#195,s#196,s#8,s#5,s#6,s#353,s#354,s#355,s#790,s#357,s#144,s#145,s#791,s#361,s#792,s#392,s#793,s#794,s#795,s#796,s#415,s#416,s#473,s#474,s#475,s#787,s#445,s#446,s#511,s#512,s#513,s#476,s#477,s#679,s#356,s#682,s#688,s#694,s#700,s#709,s#706,s#718,s#721,s#725,s#729,s#736,s#742,s#751,s#754,s#758,s#762,s#765,s#771,s#659,s#669,s#655,s#651,s#514,s#797,s#515,s#563,s#798,s#564,s#799])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #806(#529=[s#807])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.ExperimentalMaterial3Api (marker class)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.ExperimentalMaterial3Api
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/ExperimentalMaterial3Api.class
+  Last modified 1 Jan 1981; size 820 bytes
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #10(#11=e#12.#13)
+    kotlin.annotation.Retention(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #7(#8=s#9)
+    kotlin.RequiresOptIn(
+
+#### androidx.compose.material3.ExperimentalMaterial3ExpressiveApi (marker class)
+----- javap -v -p -cp material3-android-1.4.0.aar!/classes.jar androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+Classfile jar:file:///tmp/m3aar/m3/classes.jar!/androidx/compose/material3/ExperimentalMaterial3ExpressiveApi.class
+  Last modified 1 Jan 1981; size 851 bytes
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #10(#11=e#12.#13)
+    kotlin.annotation.Retention(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #7(#8=s#9)
+    kotlin.RequiresOptIn(
+
+================================================================================
+
+================================================================================
+
+================================================================================
+PART 2 - androidx.compose.material3.adaptive:adaptive-android 1.2.0, :adaptive-layout-android 1.2.0, :adaptive-navigation-android 1.2.0, and material3-adaptive-navigation-suite-android 1.4.0
+================================================================================
+
+#### androidx.compose.material3.adaptive.WindowAdaptiveInfo + WindowAdaptiveInfoKt
+----- javap -v -p -cp adaptive-android-1.2.0.aar!/classes.jar adapt.WindowAdaptiveInfo
+Classfile jar:file:///tmp/m3aar/adapt/classes.jar!/androidx/compose/material3/adaptive/WindowAdaptiveInfo.class
+  Last modified 1 Jan 1981; size 2611 bytes
+
+  MEMBER:   public androidx.compose.material3.adaptive.WindowAdaptiveInfo(androidx.window.core.layout.WindowSizeClass, androidx.compose.material3.adaptive.Posture);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #71(#72=[I#73,I#74,I#74],#75=I#76,#77=I#78,#79=[s#80],#81=[s#20,s#82,s#11,s#12,s#15,s#16,s#5,s#6,s#21,s#22,s#23,s#24,s#25,s#82,s#34,s#36,s#82,s#47,s#82,s#83])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #70()
+    androidx.compose.runtime.Immutable
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #78()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #149(#150=[I#151,I#152,I#152],#153=I#151,#154=I#155,#156=[s#157],#158=[s#5,s#159,s#70,s#160,s#6,s#29,s#161,s#30,s#112,s#162,s#163])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #167(#168=[s#169])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldKt + SupportingPaneScaffoldKt + PaneScaffoldDirectiveKt
+----- javap -v -p -cp adaptive-layout-android-1.2.0.aar!/classes.jar layout.panes
+Classfile jar:file:///tmp/m3aar/adaptl/classes.jar!/androidx/compose/material3/adaptive/layout/ListDetailPaneScaffoldKt.class
+  Last modified 1 Jan 1981; size 18306 bytes
+
+  MEMBER:   public static final void ListDetailPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10(#11=s#12)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ListDetailPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void ListDetailPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldState, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10(#11=s#12)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void ListDetailPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldState, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #296(#297=[I#298,I#299,I#299],#300=I#298,#301=I#302,#303=[s#304],#305=[s#5,s#306,s#202,s#203,s#204,s#205,s#206,s#307,s#308,s#9,s#309,s#208,s#209,s#210,s#211,s#212,s#310,s#311,s#200,s#214,s#6,s#259,s#260,s#227,s#312])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #316(#204=[s#317])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+  MEMBER:   public static final void SupportingPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10(#11=s#12)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SupportingPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldValue, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void SupportingPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldState, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10(#11=s#12)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void SupportingPaneScaffold(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldState, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function3<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldPaneScope, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function4<? super androidx.compose.material3.adaptive.layout.ThreePaneScaffoldScope, ? super androidx.compose.material3.adaptive.layout.PaneExpansionState, ? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.adaptive.layout.PaneExpansionState, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #296(#297=[I#298,I#299,I#299],#300=I#298,#301=I#302,#303=[s#304],#305=[s#5,s#306,s#202,s#203,s#204,s#205,s#206,s#307,s#308,s#9,s#309,s#208,s#209,s#210,s#211,s#212,s#310,s#311,s#200,s#214,s#6,s#259,s#260,s#227,s#312])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #316(#204=[s#317])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.layout.PaneScaffoldDirective calculatePaneScaffoldDirective-A-ymEG0(androidx.compose.material3.adaptive.WindowAdaptiveInfo, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.layout.PaneScaffoldDirective calculatePaneScaffoldDirective-A-ymEG0(androidx.compose.material3.adaptive.WindowAdaptiveInfo, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.layout.PaneScaffoldDirective calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth-A-ymEG0(androidx.compose.material3.adaptive.WindowAdaptiveInfo, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.layout.PaneScaffoldDirective calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth-A-ymEG0(androidx.compose.material3.adaptive.WindowAdaptiveInfo, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #187(#188=[I#189,I#190,I#190],#191=I#189,#192=I#193,#194=[s#195],#196=[s#197,s#144,s#107,s#108,s#109,s#198,s#5,s#6,s#199,s#125,s#200,s#201,s#202,s#179,s#180,s#181,s#89,s#90,s#184,s#201,s#203])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #207(#208=[s#209])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigatorKt + AndroidThreePaneScaffold_androidKt
+----- javap -v -p -cp adaptive-navigation-android-1.2.0.aar!/classes.jar nav
+Classfile jar:file:///tmp/m3aar/adaptn/classes.jar!/androidx/compose/material3/adaptive/navigation/ThreePaneScaffoldNavigatorKt.class
+  Last modified 1 Jan 1981; size 17604 bytes
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberListDetailPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberListDetailPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<java.lang.Object> rememberListDetailPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<java.lang.Object> rememberListDetailPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberSupportingPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberSupportingPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<java.lang.Object> rememberSupportingPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<java.lang.Object> rememberSupportingPaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberThreePaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #9()
+        androidx.compose.runtime.Composable
+      2: #10()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final <T extends java.lang.Object> androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator<T> rememberThreePaneScaffoldNavigator(androidx.compose.material3.adaptive.layout.PaneScaffoldDirective, androidx.compose.material3.adaptive.layout.ThreePaneScaffoldAdaptStrategies, boolean, java.util.List<? extends androidx.compose.material3.adaptive.layout.ThreePaneScaffoldDestinationItem<? extends T>>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #328(#329=[I#330,I#331,I#331],#332=I#330,#333=I#334,#335=[s#336],#337=[s#5,s#338,s#339,s#75,s#76,s#77,s#78,s#79,s#340,s#81,s#340,s#286,s#6,s#340,s#87,s#96,s#63,s#64,s#227,s#341,s#43,s#340,s#258,s#68,s#108,s#259,s#342])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #344(#345=[s#346])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #228(#229=[I#230,I#231,I#231],#232=I#230,#233=I#234,#235=[s#236],#237=[s#238,s#239,s#240,s#148,s#149,s#150,s#241,s#242,s#9,s#243,s#152,s#153,s#154,s#155,s#156,s#244,s#158,s#245,s#246,s#161,s#160,s#5,s#6,s#247,s#189,s#190,s#173,s#248])
+    kotlin.Metadata(
+
+#### androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldKt + NavigationSuiteScaffoldDefaults
+----- javap -v -p -cp material3-adaptive-navigation-suite-android-1.4.0.aar!/classes.jar navsuite
+Classfile jar:file:///tmp/m3aar/navsuite/classes.jar!/androidx/compose/material3/adaptive/navigationsuite/NavigationSuiteScaffoldKt.class
+  Last modified 1 Jan 1981; size 90518 bytes
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState rememberNavigationSuiteScaffoldState(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState rememberNavigationSuiteScaffoldState(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-LDyHd3E(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-LDyHd3E(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-oDdo8iI(kotlin.jvm.functions.Function1<? super androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-oDdo8iI(kotlin.jvm.functions.Function1<? super androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-thDv9LQ(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#374,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-thDv9LQ(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-7VEDjxc(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-7VEDjxc(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-koyC03U(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-koyC03U(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-zTpdPhI(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#680,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-zTpdPhI(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo getWindowAdaptiveInfoDefault(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #1252(#1253=s#205)
+        kotlin.jvm.JvmName(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo getWindowAdaptiveInfoDefault(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final boolean isVisible(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final androidx.compose.ui.Modifier navigationSuiteScaffoldConsumeWindowInsets-j08rqoE(androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Ynpp4HM(kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Ynpp4HM(kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-QXLVvyo(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-QXLVvyo(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Og0-EV8(kotlin.jvm.functions.Function2, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Og0-EV8(kotlin.jvm.functions.Function2, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Fin9vsw(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Fin9vsw(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Yk5QHw8(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Yk5QHw8(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1577(#1578=[I#1579,I#1580,I#1580],#1581=I#1579,#1582=I#1583,#1584=[s#1585],#1586=[s#5,s#316,s#126,s#22,s#6,s#1587,s#1147,s#304,s#1588,s#7,s#306,s#307,s#308,s#1589,s#310,s#311,s#312,s#1590,s#314,s#315,s#317,s#318,s#319,s#320,s#321,s#322,s#133,s#134,s#365,s#1591,s#1592,s#1593,s#367,s#332,s#333,s#370,s#371,s#1594,s#541,s#403,s#404,s#654,s#655,s#678,s#679,s#1595,s#885,s#886,s#699,s#700,s#887,s#888,s#1596,s#992,s#1147,s#993,s#994,s#995,s#996,s#997,s#998,s#999,s#1000,s#965,s#966,s#1245,s#1246,s#1247,s#962,s#980,s#981,s#1597,s#1598,s#205,s#206,s#1266,s#1267,s#1599,s#1269,s#1270,s#1600,s#1367,s#1368,s#900,s#649,s#1601,s#901,s#1399,s#1400,s#1571,s#1147,s#1572,s#1573,s#1147,s#1574,s#1575,s#802,s#1602,s#803,s#1555,s#1280,s#1281,s#425,s#426,s#1603,s#1604,s#1605])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1613(#1614=[s#1615])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults INSTANCE;
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #186(#187=[I#188,I#189,I#189],#190=I#185,#191=I#192,#193=[s#194],#195=[s#10,s#196,s#5,s#6,s#197,s#198,s#89,s#88,s#11,s#12,s#199,s#92,s#200,s#201,s#101,s#102,s#202,s#154,s#165,s#166,s#163,s#164,s#203])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #183(#184=I#185)
+    androidx.compose.runtime.internal.StabilityInferred(
+
+================================================================================
+PART 3 - adaptive opt-in markers (marker classes and the stable adaptive entry points)
+================================================================================
+
+#### androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi (marker class)
+----- javap -v -p -cp adaptive-android-1.2.0.aar!/classes.jar mk1
+Classfile jar:file:///tmp/m3aar/adapt/classes.jar!/androidx/compose/material3/adaptive/ExperimentalMaterial3AdaptiveApi.class
+  Last modified 1 Jan 1981; size 870 bytes
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #10(#11=e#12.#13)
+    kotlin.annotation.Retention(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #7(#8=s#9)
+    kotlin.RequiresOptIn(
+
+#### androidx.compose.material3.adaptive.navigationsuite.ExperimentalMaterial3AdaptiveNavigationSuiteApi (marker class)
+----- javap -v -p -cp material3-adaptive-navigation-suite-android-1.4.0.aar!/classes.jar mk2
+Classfile jar:file:///tmp/m3aar/navsuite/classes.jar!/androidx/compose/material3/adaptive/navigationsuite/ExperimentalMaterial3AdaptiveNavigationSuiteApi.class
+  Last modified 1 Jan 1981; size 986 bytes
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #10(#11=e#12.#13)
+    kotlin.annotation.Retention(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #7(#8=s#9)
+    kotlin.RequiresOptIn(
+
+#### androidx.compose.material3.adaptive.WindowAdaptiveInfoKt + AndroidWindowAdaptiveInfo_androidKt
+----- javap -v -p -cp adaptive-android-1.2.0.aar!/classes.jar ad2
+Classfile jar:file:///tmp/m3aar/adapt/classes.jar!/androidx/compose/material3/adaptive/WindowAdaptiveInfoKt.class
+  Last modified 1 Jan 1981; size 5869 bytes
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(boolean, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #78()
+        androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+      1: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #149(#150=[I#151,I#152,I#152],#153=I#151,#154=I#155,#156=[s#157],#158=[s#5,s#159,s#70,s#160,s#6,s#29,s#161,s#30,s#112,s#162,s#163])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #167(#168=[s#169])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(androidx.compose.runtime.Composer, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#9,#10=e#11.#12)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.WindowAdaptiveInfo currentWindowAdaptiveInfo(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #13()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#9,#10=e#11.#12)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final long currentWindowDpSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #54(#55=s#52)
+        kotlin.jvm.JvmName(
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeVisibleAnnotations:
+      0: #7(#8=s#9,#10=e#11.#12)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final long currentWindowSize(androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #54(#55=s#92)
+        kotlin.jvm.JvmName(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #224(#225=[I#226,I#227,I#227],#228=I#226,#229=I#230,#231=[s#232],#233=[s#5,s#234,s#6,s#235,s#236,s#52,s#53,s#237,s#238,s#92,s#129,s#239,s#240,s#241,s#130,s#242])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #244(#245=[s#246])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+#### androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldKt
+----- javap -v -p -cp material3-adaptive-navigation-suite-android-1.4.0.aar!/classes.jar ns2
+Classfile jar:file:///tmp/m3aar/navsuite/classes.jar!/androidx/compose/material3/adaptive/navigationsuite/NavigationSuiteScaffoldKt.class
+  Last modified 1 Jan 1981; size 90518 bytes
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState rememberNavigationSuiteScaffoldState(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #8()
+        org.jetbrains.annotations.NotNull
+
+  MEMBER:   public static final androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState rememberNavigationSuiteScaffoldState(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-LDyHd3E(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-LDyHd3E(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-oDdo8iI(kotlin.jvm.functions.Function1<? super androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-oDdo8iI(kotlin.jvm.functions.Function1<? super androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffold-thDv9LQ(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#374,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-thDv9LQ(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-7VEDjxc(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-7VEDjxc(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-koyC03U(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-koyC03U(kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-zTpdPhI(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#680,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-zTpdPhI(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteItem-CKlOKsw(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteItem-CKlOKsw(boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, java.lang.String, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final void NavigationSuiteItem-zZmCHrY(boolean, java.lang.String, boolean, kotlin.jvm.functions.Function0<kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.material3.NavigationItemColors, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final boolean isVisible(androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue);
+    RuntimeInvisibleParameterAnnotations:
+
+  MEMBER:   private static final androidx.compose.ui.Modifier navigationSuiteScaffoldConsumeWindowInsets-j08rqoE(androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   private static final androidx.compose.runtime.State<androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItemProvider> rememberStateOfItems(kotlin.jvm.functions.Function1<? super androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope, kotlin.Unit>, androidx.compose.runtime.Composer, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Ynpp4HM(kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Ynpp4HM(kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, androidx.compose.foundation.layout.Arrangement$Vertical, kotlin.jvm.functions.Function2, androidx.compose.ui.Alignment$Horizontal, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-QXLVvyo(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-QXLVvyo(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Og0-EV8(kotlin.jvm.functions.Function2, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Og0-EV8(kotlin.jvm.functions.Function2, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldState, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Fin9vsw(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffold-Fin9vsw(kotlin.jvm.functions.Function1, androidx.compose.ui.Modifier, java.lang.String, androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteColors, long, long, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#335)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Yk5QHw8(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteScaffoldLayout-Yk5QHw8(kotlin.jvm.functions.Function2, java.lang.String, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#657)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER:   public static final void NavigationSuiteItem-n-ovj3Y(boolean, kotlin.jvm.functions.Function0, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, boolean, kotlin.jvm.functions.Function2, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeVisibleAnnotations:
+      0: #372(#373=s#1436,#375=e#376.#377)
+        kotlin.Deprecated(
+
+  MEMBER:   public static final void NavigationSuiteItem-n-ovj3Y(boolean, kotlin.jvm.functions.Function0, kotlin.jvm.functions.Function2, kotlin.jvm.functions.Function2, androidx.compose.ui.Modifier, java.lang.String, boolean, kotlin.jvm.functions.Function2, androidx.compose.material3.NavigationItemColors, androidx.compose.foundation.interaction.MutableInteractionSource, androidx.compose.runtime.Composer, int, int);
+    RuntimeInvisibleAnnotations:
+      0: #7()
+        androidx.compose.runtime.Composable
+      1: #136(#137=s#138)
+        androidx.compose.runtime.ComposableInferredTarget(
+
+  MEMBER: (class-level attributes)
+RuntimeVisibleAnnotations:
+  0: #1577(#1578=[I#1579,I#1580,I#1580],#1581=I#1579,#1582=I#1583,#1584=[s#1585],#1586=[s#5,s#316,s#126,s#22,s#6,s#1587,s#1147,s#304,s#1588,s#7,s#306,s#307,s#308,s#1589,s#310,s#311,s#312,s#1590,s#314,s#315,s#317,s#318,s#319,s#320,s#321,s#322,s#133,s#134,s#365,s#1591,s#1592,s#1593,s#367,s#332,s#333,s#370,s#371,s#1594,s#541,s#403,s#404,s#654,s#655,s#678,s#679,s#1595,s#885,s#886,s#699,s#700,s#887,s#888,s#1596,s#992,s#1147,s#993,s#994,s#995,s#996,s#997,s#998,s#999,s#1000,s#965,s#966,s#1245,s#1246,s#1247,s#962,s#980,s#981,s#1597,s#1598,s#205,s#206,s#1266,s#1267,s#1599,s#1269,s#1270,s#1600,s#1367,s#1368,s#900,s#649,s#1601,s#901,s#1399,s#1400,s#1571,s#1147,s#1572,s#1573,s#1147,s#1574,s#1575,s#802,s#1602,s#803,s#1555,s#1280,s#1281,s#425,s#426,s#1603,s#1604,s#1605])
+    kotlin.Metadata(
+
+  MEMBER: (class-level attributes)
+RuntimeInvisibleAnnotations:
+  0: #1613(#1614=[s#1615])
+    kotlin.jvm.internal.SourceDebugExtension(
+
+================================================================================
+MARKER-USAGE SCANS (whole artifact, every class file)
+================================================================================
+
+Command: for each scan, over every .class of the artifact:
+  awk 'FNR==1{ if (hit) c++; hit=0 } index($0,MARKER)>0 {hit=1} END{ if(hit) c++; print c+0 }' $(find . -name '*.class')
+
+  material3-android 1.4.0       ExperimentalMaterial3ExpressiveApi -> 1   (its own marker class only)
+  material3-android 1.4.0-alpha18 (positive control)                 -> 54
+  material3-android 1.4.0       ExperimentalMaterial3Api            -> 61
+  material3-android 1.4.0       RequiresApi | RequiresExtension      -> 8
+  adaptive / adaptive-layout / adaptive-navigation 1.2.0             -> 0  (no platform annotation)
+  material3-adaptive-navigation-suite 1.4.0                          -> 0  (no platform annotation)
+  material3-adaptive-navigation-suite 1.4.0 ExperimentalMaterial3AdaptiveNavigationSuiteApi -> 1 (its own marker class only)
+
+  Classes carrying RequireApi/RequiresExtension in material3-android 1.4.0:
+    androidx/compose/material3/ColorResourceHelper.class
+    androidx/compose/material3/DatePicker_jvmKt.class
+    androidx/compose/material3/DynamicTonalPaletteKt.class
+    androidx/compose/material3/Locale24.class
+    androidx/compose/material3/ModalWideNavigationRailDialogLayout$Api33Impl.class
+    androidx/compose/material3/ModalWideNavigationRailDialogLayout$Api34Impl.class
+    androidx/compose/material3/internal/CalendarModelImpl.class
+    androidx/compose/material3/internal/Listener$Api33Impl.class
+
+AAR metadata (platform floors), command:
+  unzip -p <artifact>.aar META-INF/com/android/build/gradle/aar-metadata.properties
+  material3-android 1.4.0                      minCompileSdk=35 minAndroidGradlePluginVersion=8.6.0
+  material3-adaptive-navigation-suite 1.4.0    minCompileSdk=35 minAndroidGradlePluginVersion=8.6.0
+  adaptive / adaptive-layout / adaptive-nav 1.2.0  minCompileSdk=35 minAndroidGradlePluginVersion=8.6.0
+  graphics-shapes-android 1.1.0                minCompileSdk=34 minAndroidGradlePluginVersion=8.1.1
+
+AAR manifests (minSdk), command: unzip -p <artifact>.aar AndroidManifest.xml
+  material3-android 1.4.0=21   material3-window-size-class-android 1.4.0=21
+  material3-adaptive-navigation-suite-android 1.4.0=21
+  adaptive / adaptive-layout / adaptive-navigation 1.2.0=23   graphics-shapes-android 1.1.0=23
+
+Class file version (material3 1.4.0, navsuite 1.4.0, adaptive-layout 1.2.0): major version 52 (Java 8).
+
+================================================================================
+END OF EVIDENCE
+================================================================================
