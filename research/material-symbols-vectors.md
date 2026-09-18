@@ -280,7 +280,7 @@ it provides — while adding a build-plugin dependency the project does not want
 ### 2.4 The converter I wrote and ran
 
 I wrote `/tmp/svg2compose.js` (Bun/Node, no dependencies, 186 lines) and ran it over the 178 glyphs
-this app needs plus the 16 distinct FILL=1 variants — **194 artifacts converted, 0 parse failures,
+this app needs plus the 30 distinct FILL=1 variants — **208 artifacts converted, 0 parse failures,
 0 residual-input failures** [measured]. The full listing is in Appendix B; the rules that matter:
 
 | SVG construct | Compose mapping | Source of the mapping |
@@ -292,7 +292,7 @@ this app needs plus the 16 distinct FILL=1 variants — **194 artifacts converte
 | `fill-rule` | `pathFillType = EvenOdd` when `evenodd`, else `NonZero` | none of the 178 glyphs carry the attribute [measured]; kept for generality |
 | absent `fill` | `fill = SolidColor(Color.Black)` — the tint does the colouring | the same default as `materialPath` in `material-icons-core/.../Icons.kt:233-256` and material3's internal copy |
 | per-path parameters | `fillAlpha = 1f`, `stroke = null`, `strokeLineWidth = 0f`, `strokeLineCap = Butt`, `strokeLineJoin = Miter`, `strokeLineMiter = 4f` | mirrors the shape of the repo's own `Download.kt:27-34` |
-| implicit command repeats, packed arc flags, `.5`-style numbers | tokenizer emits implicit repeats as explicit commands and asserts **every number in `d` is consumed** | assertion fires on any misparse; 194/194 clean [measured] |
+| implicit command repeats, packed arc flags, `.5`-style numbers | tokenizer emits implicit repeats as explicit commands and asserts **every number in `d` is consumed** | assertion fires on any misparse; 356/356 clean [measured] |
 
 Emitted shape for the 960-grid dialect (abridged `content_cut`; full text in Appendix A):
 
@@ -354,8 +354,8 @@ theme and break every `Icon` call site.
   `upstream_url`. This is the pinned-revision record and the review surface (§5.2).
 - **Output**: `app/src/main/java/com/junkfood/seal/ui/svg/symbols/`, one file per glyph, plus an
   `object SealSymbols { object Rounded { … } }` accessor mirroring the `__DrawableVectors.kt`
-  convention. A single file for all 199 vectors is also possible (material3's `Icons.kt` model); with
-  ~1.9 KB of source per vector (§3.4) that is a ~373 KiB single file — split it.
+  convention. A single file for all 216 declarations is also possible (material3's `Icons.kt` model);
+  with ~2.6 KB of source per declaration (§3.4) that is a ~558 KiB single file — split it.
 - **Determinism**: the script must be pure (no timestamps, stable ordering, fixed float formatting),
   so re-running it on an unchanged manifest produces a byte-identical tree and `git diff` is empty.
 
@@ -429,13 +429,19 @@ many-to-one in two ways that the migration must respect:
 - Two pairs of app names are **byte-identical artwork** in the repo: `image` ≡ `photo`,
   `new_releases` ≡ `verified` [measured, md5 of the fetched payloads].
 
-**(b) Preserve the app's styles, or normalise to one?** Both are defensible; the measured cost
-difference is 16 files.
+**(b) Preserve the app's styles, or normalise to one?** Both are defensible, but the fill variant must
+be read off the *Material Icons* style each call site uses today, not off a rule that treats `Filled`
+as the only solid style: **Material Icons `Rounded` is a solid style too, and only `Outlined` is
+hollow.** Verified from the published sources jar — `rounded/Folder.kt` has one contour (`moveTo`
+×1), `outlined/Folder.kt` the same shape with an inner cut-out (`moveTo` ×2), and the same holds for
+the 20 other comparable Rounded glyphs in this set [measured]. A rule of "Filled gets FILL=1,
+everything else FILL=0" would ship `folder`, `share`, `stars`, `terminal`, `download` and 19 more
+hollow where they are solid today.
 
-| Plan | SVG files needed | Generated `ImageVector`s | Notes |
+| Plan | Upstream SVG files | Generated vectors | Notes |
 |---|---|---|---|
-| **A. Preserve style** (Filled call sites get the FILL=1 drawing, everything else FILL=0) | **194** | **199** | 178 `default` + 16 extra `fill1` (11 of the 27 Filled glyphs are already solid, so their `fill1` file is byte-identical to `default`); **192** distinct artworks after byte-dedupe; +5 mirrored duplicates (§3.3c) |
-| B. Normalise every call site to one variant | **178** | 183 | **176** distinct artworks after byte-dedupe; 27 Filled call sites change drawing weight |
+| **A. Preserve style** (`Filled`, `Default` and `Rounded` call sites get the FILL=1 drawing; `Outlined` keeps FILL=0) | **208** | **216** declarations, **204** distinct code texts | 178 FILL=0 files + 30 additional FILL=1 files (46 glyphs need FILL=1; 16 of those already have a solid FILL=0 file, so they add none); 206 distinct artworks after byte-dedupe; 33 glyphs need both variants, 12 of them with byte-identical variant files, so those emit one artifact, not two; +5 mirrored duplicates (§3.3c) |
+| B. Normalise every call site to one variant | 178 | 183 | **176** distinct artworks after byte-dedupe; the 27 `Filled` and 24 `Rounded` call-site keys (51 in total) change drawing weight |
 
 All 178 glyphs exist in both variants [measured: 178/178 `_fill1_24px.svg` fetched, 200 OK]; the two
 variants differ for 111 of 178 glyphs and are identical for 67.
@@ -444,19 +450,22 @@ variants differ for 111 of 178 glyphs and are identical for 67.
 are *also* used in a non-mirrored call site: `ArrowForward`, `OpenInNew`, `PlaylistAdd`,
 `PlaylistPlay`, `Sort` [measured: e.g. `Icons.Outlined.Sort` and `Icons.AutoMirrored.Outlined.Sort`
 both appear]. `Icons.AutoMirrored.Outlined.Sort` and `Icons.Outlined.Sort` are two different
-`ImageVector`s with the same path data and different `autoMirror` values, so those five glyphs are
-generated twice — 199 vectors from 194 SVG files (the extra five cost 7,754 B of source [measured]).
+`ImageVector`s with the same path data and different `autoMirror` values, so those five glyph/variant
+pairs are generated twice — 216 declarations from 208 upstream SVG files, of which 204 are distinct
+code texts (the extra five cost 10,774 B of source [measured]).
 
-**Recommendation: Plan A.** 21 glyphs are used today in *both* a Filled and a non-Filled style
-(`build`, `cancel`, `check_circle`, `close`, `download`, `error`, `info`, `lock`, `settings`,
-`subscriptions`, `subtitles`, `terminal`, `timer`, `video_library`, `warning`, …) — the app is already
-using fill as a state signal, and Material's own README describes exactly this use (*"the Fill axis …
-can be manipulated for an animated fill effect, to indicate user selection"*). Plan A costs 16 extra SVG files plus 5 mirrored duplicates (~46 KB of source) and keeps 27 call sites
-visually faithful; Plan B changes their weight in one sweep, which `#14` must then accept.
+**Recommendation: Plan A.** 33 glyphs are used today in *both* a FILL=1 style (`Filled`, `Default` or
+`Rounded`) and `Outlined` (`build`, `cancel`, `check_circle`, `close`, `download`, `error`, `info`,
+`lock`, `settings`, `subscriptions`, `subtitles`, `terminal`, `timer`, `video_library`, `warning`, …)
+— the app is already using fill as a state signal, and Material's own README describes exactly this
+use (*"the Fill axis … can be manipulated for an animated fill effect, to indicate user selection"*).
+Plan A costs 30 extra SVG files plus 5 mirrored duplicates (~558 KiB of source) and keeps 51 call-site
+keys visually faithful; Plan B changes their weight in one sweep, which `#14` must then accept.
 
-Plan A is therefore: **194 SVG files → 199 generated `ImageVector`s for 184 base names / 225 real call
-sites**, of which 17 vectors (12 names, 5 of them duplicated) carry `autoMirror = true` (§6.4) and 6
-names are reached through the alias table (§3.3a).
+Plan A is therefore: **208 upstream SVG files → 216 generated vector declarations (204 distinct code
+texts) for 184 base names / 225 real call sites**, of which 14 declarations (12 names, two of them
+needed at both fill variants) carry `autoMirror = true` (§6.4) and 6 names are reached through the
+alias table (§3.3a).
 
 ### 3.4 APK cost: measured inputs, estimated output
 
@@ -479,18 +488,18 @@ Method: `curl -L -D -` for `Content-Length`, `unzip -l` on the AAR and on the ex
 `classes.jar`, `awk` sums (Appendix C). Note the icon artifact sits on a **frozen 1.7.8 line** while
 the rest of Compose in the same BOM is 1.11.2 — the version catalog is already mixing lines here.
 
-**The generated side, measured as source** [measured]: 194 artifacts → 10,719 path commands and
-24,863 numeric literals. Generated Kotlin source, in the two plausible emission styles:
+**The generated side, measured as source** [measured]: the 216 declarations contain 11,466 path
+commands and 26,789 numeric literals. Generated Kotlin property text, in the two plausible emission
+styles (per-file package, import and licence headers are excluded, ~700 B per file):
 
-| Emission style | Total bytes (194 SVG files) | Bytes / vector |
+| Emission style | Total bytes (216 declarations) | Bytes / declaration |
 |---|---|---|
-| explicit `path(fill = …, fillAlpha = …, stroke = …) { … }` per glyph (Appendix A) | 667,058 | 3,438 |
-| with a local ~35-line `materialIcon`/`materialPath` helper (§2.2) | **374,278** | **1,929** |
-| the 5 mirrored duplicates (helper form) | +7,754 | 1,551 |
-| **Plan A total, helper form (199 vectors)** | **382,032** | **1,920** |
+| explicit `path(fill = …, fillAlpha = …, stroke = …) { … }` per glyph (Appendix A) | 724,765 | 3,355 |
+| with a local ~35-line `materialIcon`/`materialPath` helper (§2.2) | **571,486** | **2,646** |
+| the same, counting distinct code texts only (204) | 532,789 | 2,612 |
 
 **Compiled size, estimate.** Using the measured rounded per-class cost as the calibration proxy,
-199 vectors ≈ 199 × 7,679 B ≈ **1.46 MiB of uncompressed `.class`** `[estimate]`; DEX output is
+216 declarations ≈ 216 × 7,679 B ≈ **1.58 MiB of uncompressed `.class`** `[estimate]`; DEX output is
 smaller again after R8 `[INFERENCE: R8 was not run — no JDK/SDK on this host]`.
 
 **What this means for the APK, honestly.**
@@ -506,8 +515,8 @@ smaller again after R8 `[INFERENCE: R8 was not run — no JDK/SDK on this host]`
 - The **measured** costs of the dependency are build-side and certain: a 34.07 MiB AAR download per
   clean build, 11,123 jar entries and 85.39 MB of class bytes for R8 to read and shrink, and a
   library that no longer moves with the rest of Compose.
-- The compressed DEX cost of 199 committed vectors cannot be stated without a build; treat
-  "1.46 MiB uncompressed class" as the ceiling of the new scheme and re-measure after the first
+- The compressed DEX cost of 216 committed declarations cannot be stated without a build; treat
+  "1.58 MiB uncompressed class" as the ceiling of the new scheme and re-measure after the first
   release build if the number matters to `#12` `[estimate, residual uncertainty]`.
 
 ---
@@ -535,7 +544,8 @@ The generated Kotlin must contain exactly the upstream numbers, in order. I ran 
 round trip**: parse each upstream `d`, emit the Kotlin, re-read the Kotlin call lines back into SVG
 commands, and compare command letters and argument values.
 
-Result: **194 of 194 SVG files matched exactly, 0 mismatches** [measured]. Combined with the parser's
+Result: **356 of 356 SVG files matched exactly — 178 glyphs × both fill variants, 0 mismatches**
+[measured; re-run by the parent session over the full corrected file set]. Combined with the parser's
 own invariant (all numbers in `d` consumed), this pins parse and emission.
 
 *Does not catch*: a mapping that is self-consistent but semantically wrong in Compose (e.g. swapping
@@ -547,11 +557,13 @@ no arcs occur at all, which removes that residual risk entirely [measured: 0 `A/
 
 Two levels:
 
-**(a) Converter-level, already run.** I re-serialized each parsed path into an SVG of the same
-`viewBox`, rendered the original and the round-tripped SVG side by side in real Chromium at 96 × 96 px
-via `canvas.drawImage` + `getImageData`, and compared pixels. Result: **194/194 glyphs with 0 pixels
-differing beyond a delta of 8, max delta 0, and 0 blank renders** [measured]. Fixture and page:
-`/tmp/rt/roundtrip.html`, `/tmp/rt/roundtrip.json` (Appendix C).
+**(a) Converter-level, already run.** Each parsed path was re-serialized into an SVG of the same
+`viewBox`, the original and the round-tripped SVG rendered side by side in real Chromium at 96 × 96 px
+via `canvas.drawImage` + `getImageData`, and the pixels compared. Result: **208/208 SVG files of the
+corrected set with 0 pixels differing beyond a delta of 8, max delta 0, and 0 blank renders**
+[measured; the parent session re-ran this over the corrected 208-file set, which includes all 30
+additional FILL=1 files — the research session's first run covered the earlier 194-file set].
+Fixture and page: `/tmp/rt/final.html` over `/tmp/glyphs/` and `/tmp/glyphs-fill1/` (Appendix C).
 
 **(b) In-app, required before the migration lands.** The repo's harness already exists:
 `ui/svg/VectorPreviews.kt` renders vectors in a `@Preview` with light/night variants. Add an
@@ -603,8 +615,12 @@ artwork on a 24-unit grid (`viewportWidth = 24f` in `materialIcon`,
 `material-icons-core/.../Icons.kt:212-223`) [measured], while the redesign commits Material
 *Symbols* artwork on a 960-unit grid. Equality of names is not equality of drawings (§6.2).
 
-*Cannot*: catch a wrong **style** choice between Material Symbols variants — the old artwork has no
-FILL axis.
+*Does catch*: a wrong **fill variant** choice — the old artwork does encode solid versus hollow
+(`Outlined` is the hollow style; `Filled`, `Default` and `Rounded` are solid), so rendering today's
+icon next to its replacement shows instantly when the replacement is hollow and the original is not.
+This is the check that would have caught the `Rounded` variant error in §3.3b.
+*Cannot*: catch that Material Symbols *redrew* a glyph the app keeps at the same weight; the old
+drawing and the new drawing legitimately differ there.
 
 ### 4.5 Auto-mirroring verification (the one behaviour with no glyph-side evidence)
 
@@ -631,7 +647,7 @@ provides LayoutDirection.Rtl)`) rendering those glyphs next to their LTR form: a
 | 1. Derive the Material Symbols name from the call site (rule §6.1) | seconds |
 | 2. Add the glyph to `tools/material-symbols.manifest.tsv` (glyph, variant, codepoint, auto_mirror, URL) | ~1 min |
 | 3. Run `tools/svg2compose.js` (fetches only missing glyphs; regeneration is deterministic) | seconds for one glyph; ~25 s for all 178 at 8-way concurrency [measured] |
-| 4. Review the diff (1 new file, ~1.9 KB) and the call site | ~2 min |
+| 4. Review the diff (1 new file, ~2.6 KB) and the call site | ~2 min |
 | 5. Optionally add the tile to `SymbolsPreview.kt` | ~1 min |
 
 **Total ≈ 5 minutes**, with a converter run — no hand-editing needed. A hand edit is also viable (the
@@ -649,8 +665,8 @@ to. The review surface must be created deliberately:
 - Record the upstream SHA in the manifest (this report uses
   `27e9ef1dbeedc13d682fece4a58e1eda4cb0961a`) and in `tools/README` §"updating".
 - Add a `--check` mode that re-fetches at a **newer** SHA and diffs the generated tree against the
-  committed one. Cost per review: one command, then a diff. A full-set re-export touches up to 194
-  files / 382,032 B of source; in practice an upstream release changes a handful of glyphs.
+  committed one. Cost per review: one command, then a diff. A full-set re-export touches up to 208
+  files / ~558 KiB of source; in practice an upstream release changes a handful of glyphs.
 - Cadence: on demand, not on a schedule. Material Symbols adds glyphs continuously; this app needs a
   new glyph when a feature needs one, and that path is §5.1.
 
@@ -673,11 +689,11 @@ cost:
 
 ### 5.4 What the committed set costs to keep honest
 
-- **Review surface**: 194 generated files → 199 vectors (192 distinct artworks) = 382,032 B of Kotlin,
-  one manifest file, one ~190-line script.
+- **Review surface**: 208 generated files → 216 vector declarations (204 distinct code texts, 206
+  distinct artworks) ≈ 558 KiB of Kotlin property text, one manifest file, one ~190-line script.
 - **Drift risks** that exist only with the committed approach, each needing a guard: the alias table
-  (§3.3a), the `autoMirror` set (12 names → 17 vectors, §6.4), the 27 FILL=1 choices (§3.3b), the
-  pinned SHA (§5.2). All four live in one manifest file; there is no other state.
+  (§3.3a), the `autoMirror` set (12 names → 14 declarations, §6.4), the FILL=1 set (46 glyphs, §3.3b),
+  and the pinned SHA (§5.2). All four live in one manifest file; there is no other state.
 - **Compare with today's cost**: a version-catalog line, a bundle entry
   (`gradle/libs.versions.toml:57`, `:127`), and a 34.07 MiB AAR per clean build — but zero per-glyph
   review, and no control over which drawing ships.
@@ -717,14 +733,21 @@ Not in name shape — in four other places:
 2. **Name equality is not artwork equality.** `material-icons-extended` 1.7.8 is built from the
    *Material Icons* families (`download_material_icons.py`'s `THEME_MAPPING` maps to
    `filled/outlined/rounded/twotone/sharp` [measured]), while this migration commits *Material
-   Symbols* artwork. Same name, different drawing, different grid (24 vs 960). The measured proof that
-   even upstream's own codepoints do not imply identical artwork: `download` and `file_download` share
-   codepoint `f090` yet their 24px SVGs **differ in bytes** [measured]; `image` ≡ `photo` and
-   `new_releases` ≡ `verified`, on the other hand, are byte-identical [measured]. Any "same
-   codepoint ⇒ same file" shortcut is wrong in both directions.
+   Symbols* artwork. Same name, different drawing, different grid (24 vs 960). Two file-level traps
+   follow, and neither is decidable from a name or a codepoint alone:
+   - **A codepoint does not identify a payload.** `download` and `file_download` share codepoint
+     `f090` [measured], yet they are two files on two grids — `download` carries
+     `viewBox="0 -960 960 960"`, `file_download` carries no `viewBox` and 24-unit coordinates — and
+     their serializations differ (44 versus 43 path segments, different command letters) [measured].
+   - **Byte equality does not imply codepoint equality, and vice versa.** `image` ≡ `photo` are
+     byte-identical files with different codepoints (`e3f4` vs `e693`); `new_releases` ≡ `verified` are
+     byte-identical and share `ef76` [measured].
+   So dedupe on bytes, resolve names through the codepoint dictionary *plus* the alias table (§3.3a),
+   and treat grid and serialization as part of a file's identity. Any "same codepoint ⇒ same file"
+   shortcut is wrong in both directions.
 3. **Auto-mirroring is not a name property.** The rounded `.codepoints` file contains **no
    `_mirrored` names at all** [measured: 0 matches in 4,284 names]. Mirroring is a per-icon attribute
-   upstream (`android:autoMirrored="true"` in Google's raw drawables, `IconProcessor.kt:139`
+   upstream (`android:autoMirrored="true"` in Google's raw drawables, `IconProcessor.kt:143-144`
    [measured]) and an `ImageVector.Builder(autoMirror = …)` property in Compose
    (`ImageVector.kt:119`). The app's 12 auto-mirrored call sites therefore map to the **plain** glyph
    name plus a flag (§6.4).
@@ -742,9 +765,11 @@ resolution  codepoint  auto_mirror_flag_in_code  svg_variant  upstream_svg_url
 ```
 
 `resolution` is `direct` for 219 rows, `alias-><canonical>` for 6, and
-`NOT_A_CALL_SITE (KDoc example)` for 1 [measured]. `svg_variant` is `fill1_24px` for Filled call sites
-and `24px` otherwise, and `upstream_svg_url` is the exact pinned URL for that row.
-Regeneration recipe: Appendix C step 7.
+`NOT_A_CALL_SITE (KDoc example)` for 1 [measured]. `svg_variant` is `fill1_24px` for `Filled`,
+`Default` and `Rounded` call sites and `24px` for `Outlined`, and `upstream_svg_url` is the exact
+pinned URL for that row. Regeneration recipe: Appendix C step 7.
+The corrected table is committed with this report at `research/ticket10-glyph-mapping.tsv`
+(a host-local copy also sits at `/tmp/sealplus-glyph-mapping.tsv`).
 
 The exception list, in full (the only 7 rows that the naive rule does not resolve):
 
@@ -803,8 +828,8 @@ would be a bug.
 The naming rule decides the *filename* and the *fetch URL*; the trap decides the *count*. A generator
 that applies the rule and stops gets 178 files and 6 silent 404s [measured]. A generator that applies
 the rule plus the alias table plus the byte-dedupe plus the FILL=1 split plus the mirrored duplicates
-gets **194 SVG files → 199 generated vectors (192 distinct artworks) for 184 base names / 225 real
-call sites** — the number `#12` should plan against.
+gets **208 SVG files → 216 generated vector declarations (204 distinct code texts, 206 distinct
+artworks) for 184 base names / 225 real call sites** — the number `#12` should plan against.
 
 ---
 
@@ -1023,28 +1048,32 @@ unzip -l mie-aar/classes.jar | awk '$4 ~ /^androidx\/compose\/material\/icons\//
 **Glyph count.** Enumeration: `Icons\.(AutoMirrored\.)?(Default|Outlined|Rounded|Sharp|Filled|TwoTone)\.([A-Za-z0-9_]+)`
 over the 165 `.kt` files under `app/src/main/java` → **78 files**, 226 call-site names, 184 base names,
 **225 real call sites** (one KDoc false positive at `GradientDarkExample.kt:199`). What the migration
-commits under Plan A: **194 SVG files → 199 generated vectors (192 distinct artworks) for 184 base
-names** — 178 FILL=0 files, 16 additional distinct FILL=1 files, and 5 mirrored duplicates; or 178
-files / 183 vectors if `#12` prefers a single fill variant (§3.3). Cost, measured as source: 382,032 B
-with a local helper (1,920 B/vector); estimated as compiled ≈1.46 MiB uncompressed class `[estimate]`.
-The deleted dependency, measured: 35,720,998 B AAR, 11,117 icon classes, 85,390,331 B uncompressed,
-frozen at 1.7.8 while the rest of Compose in the same BOM is 1.11.2. The APK delta is small because
-R8 already strips unreferenced icons today (`app/build.gradle.kts:97-98`) `[INFERENCE, unmeasured]`;
-the real win is build cost and dependency hygiene, not APK size.
+commits under Plan A: **208 upstream SVG files → 216 vector declarations (204 distinct code texts, 206
+distinct artworks) for 184 base names** — 178 FILL=0 files, 30 additional FILL=1 files for the 46
+glyphs that `Filled`, `Default` or `Rounded` call sites need, and 5 mirrored duplicate pairs; or 178
+files / 183 vectors if `#12` prefers a single fill variant (§3.3). Cost, measured as source: 571,486 B
+of property text with a local helper (2,646 B per declaration); estimated as compiled ≈1.58 MiB
+uncompressed class `[estimate]`. The deleted dependency, measured: 35,720,998 B AAR, 11,117 icon
+classes, 85,390,331 B uncompressed, frozen at 1.7.8 while the rest of Compose in the same BOM is
+1.11.2. The APK delta is small because R8 already strips unreferenced icons today
+(`app/build.gradle.kts:97-98`) `[INFERENCE, unmeasured]`; the real win is build cost and dependency
+hygiene, not APK size.
 
 **Verification step.** Three gates, all cheap and two already run here: (i) the script must fail on a
 missing glyph file and check dictionary membership + `viewBox` grid; (ii) exact path-data equality —
-inverse round trip through the generated Kotlin, **194/194 SVG files exact** (the 5 mirrored duplicates
-reuse verified path data and differ only in the flag); (iii) rendered pixel comparison —
-**194/194 glyphs pixel-identical in Chromium at 96 × 96, 0 blank**; then in-app, extend
-`ui/svg/VectorPreviews.kt` with a grid preview at 24 dp to compare against the Material Symbols tiles,
-and a `@Preview(locale = "ar")` for the `autoMirror` vectors. AndroidX's own equivalent
-(`ExtendedIconComparisonTest`) is the precedent for the screenshot level.
+inverse round trip through the generated Kotlin, **356/356 SVG files exact** (178 glyphs × both fill
+variants; the 5 mirrored duplicates reuse verified path data and differ only in the flag);
+(iii) rendered pixel comparison — **208/208 files of the corrected set pixel-identical in Chromium at
+96 × 96, 0 blank**; then in-app, extend `ui/svg/VectorPreviews.kt` with a grid preview at 24 dp to
+compare against the Material Symbols tiles, plus a call-site-level before/after render, which is also
+the check that catches a wrong fill variant (§4.4), and a `@Preview(locale = "ar")` for the
+`autoMirror` vectors. AndroidX's own equivalent (`ExtendedIconComparisonTest`) is the precedent for
+the screenshot level.
 
-**Maintenance cost.** Adding a glyph: ~5 minutes, one manifest row plus one script run plus a ~1.9 KB
+**Maintenance cost.** Adding a glyph: ~5 minutes, one manifest row plus one script run plus a ~2.6 KB
 diff. Upstream updates: invisible by default — there is no dependency to bump — so the pinned SHA and
-a `--check` diff mode are the only way the app notices; a full re-export is up to 194 files /
-382,032 B of review. A renamed or removed glyph upstream fails loudly on the 404 and resolves through
+a `--check` diff mode are the only way the app notices; a full re-export is up to 208 files /
+~558 KiB of review. A renamed or removed glyph upstream fails loudly on the 404 and resolves through
 the alias table (the measured instance: 6 names today). Four things must stay in the manifest or they
-drift: the alias table, the `autoMirror` set (12 names → 17 vectors), the 27 FILL=1 choices, and the
-pinned revision.
+drift: the alias table, the `autoMirror` set (12 names → 14 declarations), the FILL=1 set (46 glyphs),
+and the pinned revision.
