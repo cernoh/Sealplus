@@ -83,7 +83,25 @@ app/build/outputs/apk/generic/debug/SealPlus-3.0.0-universal.apk
 The emulator needs `SealPlus-3.0.0-x86_64.apk`.
 
 `./gradlew buildGenericRelease` (what CI runs) also works in the shell, with the
-same aapt2 flag.
+same aapt2 flag, but it needs `-PnoSplits` on AGP 9.2.1:
+
+```bash
+./gradlew buildGenericRelease -PnoSplits \
+  -Pandroid.aapt2FromMavenOverride=$ANDROID_HOME/build-tools/37.0.0/aapt2
+```
+
+Without `-PnoSplits` the build fails in `:app:buildGenericReleasePreBundle`:
+
+```
+Multiple shrunk-resources files found in directory
+  app/build/intermediates/shrunk_resources_proto_format/genericRelease/minifyGenericReleaseWithR8
+Please disable building multiple APKs when building an Android app bundle.
+```
+
+That is a pre-existing defect in the repository on AGP 9.2.1, not a host
+problem: the ABI splits and the release bundle cannot be built together. It is
+outside this ticket, and it is the reason `.github/workflows/android_ci.yml`
+cannot pass as written. See [Not made to work](#not-made-to-work).
 
 ## Emulator
 
@@ -346,6 +364,15 @@ whole native pipeline is proven on the emulator, not only app startup.
 
 ### Not made to work
 
+- **`buildGenericRelease` with ABI splits enabled.** It fails in
+  `:app:buildGenericReleasePreBundle` with `Multiple shrunk-resources files found
+  in directory .../shrunk_resources_proto_format/genericRelease/minifyGenericReleaseWithR8`
+  and `Please disable building multiple APKs when building an Android app
+  bundle.` The release variant succeeds with `-PnoSplits` (2 m 50 s). This is a
+  pre-existing repository defect on AGP 9.2.1, reproducible on the unmodified
+  `origin/main` build files, and it is outside this ticket. It does mean
+  `.github/workflows/android_ci.yml`, which runs a bare
+  `./gradlew buildGenericRelease`, cannot pass as written.
 - **Reading the app's private data as a non-root `shell` user.** Needs
   `adb root` or `adb shell run-as`. Not a defect; noted in
   [Pitfalls](#pitfalls).
