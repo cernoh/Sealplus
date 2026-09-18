@@ -12,28 +12,34 @@ creates a player, and samples `getCurrentTime()` / `getPlayerState()` every 500 
 Video used: `dQw4w9WgXcQ` (Rick Astley — Never Gonna Give You Up). Embeddable: the
 `/oembed` endpoint returns HTTP 200 with title metadata from this host.
 
-## 1. Origin and referrer gate — observed
+## 1. The gate is the Referer identity, not the page origin — observed
 
-| Parent page origin | Player result |
-|---|---|
-| `https://gist.githack.com` (public HTTPS) | plays; `duration = 214` |
-| `http://127.0.0.1:8791` (loopback HTTP) | `onError 150` at load, `getDuration() = 0`, state never leaves `-1` |
-| direct navigation to `https://www.youtube.com/embed/<id>` (top level, no referrer) | page renders its own message: **"Video player configuration error. Error 153"** |
+| Parent page origin | Referer sent | Player result |
+|---|---|---|
+| `https://gist.githack.com` (public HTTPS) | natural (the same public URL) | plays; `duration = 214` |
+| `http://127.0.0.1:8791` (loopback HTTP) | natural (`http://127.0.0.1:8791/index.html`) | `onError 150` at load, `getDuration() = 0`, state never leaves `-1` |
+| `http://127.0.0.1:8794` (loopback HTTP) | forced `Referer: https://com.maheshtechnicals.sealplus/` | **plays**; state `-1` → `1` at `30.0`, `duration 214`, no error |
+| direct navigation to `https://www.youtube.com/embed/<id>` (top level, no referrer) | none | page renders its own message: **"Video player configuration error. Error 153"** |
 
-Same browser, same video, same playerVars. The discriminator is the parent page's
-origin/referrer, not automation: the automated browser plays the embed from a public HTTPS
-origin. Adding `widget_referrer=https://example.com` to a loopback-HTTP parent did **not**
-lift the refusal (still `onError 150`).
+The loopback row and the forced-Referer row are the same page on the same origin with one header changed, so
+**the discriminator is the Referer, not the origin**: a plausible HTTPS identity makes the embed play even from
+loopback HTTP, and its absence refuses an otherwise working page. This matches the primary documentation quoted in the
+research report: YouTube's Required Minimum Functionality page requires embed clients to send
+`Referer: https://<application-id>/`, and the IFrame API reference lists error `153` as "the request does not include the
+HTTP Referer header or equivalent API Client identification".
 
-Nonexistent video IDs (`aaaaaaaaaaa`, `zz1zz2zz3zz`) also return `onError 150` from the
-loopback origin — so in that environment `150` is a blanket environment refusal, not a
-per-video verdict. **Error-code -> refusal-class mapping could not be established by
-observation here.**
+Adding `widget_referrer=https://example.com` (documented as analytics-only) did **not** lift the refusal from the
+loopback origin — still `onError 150`.
 
-Consequence to verify on-device: the app's local asset origin
-(`https://appassets.androidplatform.net` via `WebViewAssetLoader`, or any `file://`/`data:`
-page) is not a public domain. Whether YouTube's gate accepts it is **unknown**, and it is
-the single most load-bearing open question for the preview design (see ticket #20).
+Nonexistent video IDs (`aaaaaaaaaaa`, `zz1zz2zz3zz`) also return `onError 150` from the refused origin, so from a
+refused origin `150` is a blanket environment refusal and says nothing about the video. The per-class mapping was
+obtained separately, from the working public origin (section 5).
+
+Consequence to verify on-device: Android `WebView.loadUrl(url, additionalHttpHeaders)` sets the Referer for the load
+it performs, and the local preview page (`WebViewAssetLoader`, `https://appassets.androidplatform.net`) would embed
+`youtube.com` in a **subframe** whose own Referer the app does not set. Whether the appassets origin alone passes the
+gate, and whether a per-load Referer reaches the iframe request, is **unknown** and is the load-bearing open question
+for the preview design.
 
 ## 2. `start` and `end` — observed
 
@@ -82,7 +88,27 @@ onStateChange(e) { if (e.data === 0) { e.target.seekTo(30, true); e.target.playV
 ... -> 0@40` again. The seam is about **0.1 s** (state `0` at 11.8 s wall, state `1` at
 11.9 s wall), with no media reload. Confirmed over two cycles.
 
-## 5. Chrome the player carries, and refusals
+## 5. Refusal classes observed from the working (public HTTPS) origin
+
+| Video | Class evidence | `/oembed` | Player result |
+|---|---|---|---|
+| `dQw4w9WgXcQ` | embeddable | 200 + metadata | plays, `duration 214` |
+| `UgvSg_Cws-o` ("Final Destination 5") | watch page: `"playableInEmbed": false`, `"status":"UNPLAYABLE"` | **401 Unauthorized** | `onError 150`, `duration 0`, state stuck at `-1` |
+| `iLKV0aL4ZQA`, `ZR-5-DyN1sI` | watch page text "Sign in to confirm your age" | **200** | `onError 150`, `duration 0`, state stuck at `-1` |
+
+Two consequences:
+
+- `onError 150` is the shared signal for "the embed will not play this video". Embedding
+  disabled and age gated are **not distinguishable** through the player API alone; the
+  editor can only say "preview unavailable".
+- `/oembed` is a usable pre-flight oracle for the embedding-disabled class only: 401 means
+  refuse before the player is mounted; 200 does **not** mean the video will play (both
+  age-gated samples returned 200 and still refused with 150).
+
+A 203-ID scan of YouTube search results found exactly one non-embeddable video
+(`UgvSg_Cws-o`), so this class is rare in practice but real.
+
+## 6. Player chrome and the refusal reporting surface
 
 `embed-range-playing.webp` (same directory) shows the player sitting at `0:40 / 3:34` after
 the range end: full YouTube chrome is present — title overlay, channel avatar, captions,
@@ -94,7 +120,7 @@ Refusal reporting surface, observed: `onError(event.data)` with a numeric code, 
 (no `getVideoData` error field) reported the reason. The rendered message for the
 no-referrer case was YouTube's own "Error 153" panel inside the embed.
 
-## 6. The app's injected shim — observed, no interference
+## 7. The app's injected shim — observed, no interference
 
 The exact `ANTI_DETECTION_SCRIPT` was extracted from
 `ui/page/settings/network/WebViewPage.kt` and placed in the page's `<head>` before the
@@ -112,10 +138,7 @@ The shim does not interfere with the embedded player in this environment.
 - Any Android WebView behaviour. No JDK, no SDK, no emulator: the WebView settings that
   matter (`mediaPlaybackRequiresUserGesture` after `setUserMediaPlaybackRequiresUserGesture`,
   hardware acceleration, `WebViewAssetLoader` origin acceptance) are unprobed.
-- Error-code mapping for embedding-disabled / age-restricted / region-locked videos. No
-  such video was found: 85 candidate IDs scanned through `/oembed` all returned 200.
-  `/oembed` returns 401 for a non-embeddable video, so the oracle works; the samples were
-  all embeddable.
+- Region-locked videos: untested; no sample was found for that class.
 - `rel=0` effectiveness (the "More videos" card was visible in a run that did not set it).
 - Whether the shim's `navigator.userAgentData` rewrite lands the same way on a real WebView,
   and whether YouTube reacts to the rewritten brands differently there.
